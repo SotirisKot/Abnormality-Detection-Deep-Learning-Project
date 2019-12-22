@@ -60,23 +60,25 @@ def get_dataloaders(data, batch_size=8, study_level=False):
 
     # IN THE PAPER THEY RESCALE THE IMAGES TO 320 x 320
     # THEY AUGMENT THE DATA WITH INVERSIONS AND ROTATIONS.
+    image_shape = 100*100
+
     data_transforms = {
         'train': transforms.Compose([
-                transforms.Resize((320, 320)),
+                transforms.Resize((image_shape, image_shape)),
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomRotation(10),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'valid': transforms.Compose([
-            transforms.Resize((320, 320)),
+            transforms.Resize((image_shape, image_shape)),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
     }
     image_datasets = {x: MURA_dataset(data[x], transform=data_transforms[x]) for x in data_cat}
     dataloaders = {x: DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True) for x in data_cat}
-    return dataloaders
+    return dataloaders, image_shape
 
 
 # ================================ TEST THE DATALOADERS ================================ #

@@ -30,34 +30,58 @@ np.random.seed(seed)
 
 
 # FOR THE MLP MAYBE WE JUST NEED TO FLATTEN THE VIEWS OF A STUDY AND OUTPUT 1 NUMBER
-# THE PROBA OF BEING NORMAL OR ABNORMAL
+# THE PROBA OF BEING NORMAL OR ABNORMAL (THIS IS STUPID BUT WE MUST START FROM ZERO TO HERO)
+
 # OR ELSE WE NEED FOR EACH IMAGE TO OUTPUT A NUMBER AND TAKE THE AVERAGE
 # THAT'S WHY THE AVERAGE POOLING
-class MLP_With_Average_Pooling(nn.Module):
-    def __init__(self, input_dim, n_classes, hidden_1, hidden_2,):
+class MLP_With_Average_Pooling(Module):
+    def __init__(self, input_dim, n_classes, hidden_1, hidden_2, hidden_3, dropout=None):
         super(MLP_With_Average_Pooling, self).__init__()
 
         self.input_dim   = input_dim
         self.n_classes   = n_classes
         self.hidden_1    = hidden_1
         self.hidden_2    = hidden_2
+        self.hidden_3    = hidden_3
         self.leaky_relu  = F.leaky_relu
+        self.dropout     = dropout
 
         # affine = True means it has learnable parameters
         self.batchnorm_1    = nn.BatchNorm1d(self.hidden_1, affine=True)
-        self.batchnorm_relu = F.relu
+        self.batchnorm_3    = nn.BatchNorm1d(self.hidden_3, affine=True)
 
         # self.batchnorm_2 = nn.BatchNorm1d(self.hidden_2, affine=True)
 
         self.layer_1     = nn.Linear(self.input_dim, self.hidden_1, bias=True)
         self.layer_2     = nn.Linear(self.hidden_1, self.hidden_2, bias=True)
-        self.final_layer = nn.Linear(self.hidden_2, self.n_classes, bias=True)
+        self.layer_3     = nn.Linear(self.hidden_2, self.hidden_3, bias=True)
+
+        self.final_layer = nn.Linear(self.hidden_3, self.n_classes, bias=True)
 
     def init_weights(self):
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
         torch.nn.init.xavier_uniform_(self.final_layer.weight)
 
-    def forward(self):
-        pass
+    def forward(self, images):
+
+        # flatten the images
+        images  = images.view(images.shape[0], -1)
+
+        output  = self.layer_1(images)
+        output  = self.batchnorm_1(output)
+        output  = self.leaky_relu(output)
+
+        output  = self.layer_2(output)
+        output  = self.leaky_relu(output)
+
+        output = self.layer_3(output)
+        output = self.batchnorm_3(output)
+        output = self.leaky_relu(output)
+
+        output  = self.final_layer(output)
+        output  = torch.mean(output)
+
+        # do not add sigmoid...BCEWithLogitsLoss does this
+        return output
 
