@@ -31,6 +31,8 @@ import argparse
 from dataloader import get_study_level_data, get_dataloaders
 
 odir_checkpoint = './checkpoints/'
+# odir_checkpoint = 'drive/My Drive/DeepLearningProject/checkpoints/'
+
 best_chekpoint_name = 'mlp_with_average_pooling.pth.tar'
 
 if not os.path.exists(odir_checkpoint):
@@ -117,8 +119,8 @@ pos_weight          = torch.FloatTensor(np.array(num_abnormal_images / (num_abno
 
 
 lr                  = 0.001
-batch_size          = 8
-epochs              = 10
+batch_size          = 64
+epochs              = 1
 model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
                                                n_classes=1,
                                                hidden_1=5000,
@@ -140,25 +142,42 @@ best_auc            = -1000.0
 best_epoch          = 0
 
 
+if use_cuda:
+    model = model.cuda()
+
+
 def evaluate(iterator, model):
     with torch.no_grad():
         model.eval()
-        aucs = []
-        aps = []
+        batch_preds  = []
+        batch_labels = []
+        aucs         = []
+        aps          = []
         for ev_batch in iterator:
 
             dev_images = ev_batch['images']
             dev_labels = ev_batch['labels']
 
+            if use_cuda:
+                dev_images = dev_images.cuda()
+                dev_labels = dev_labels.cuda()
+
             optimizer.zero_grad()
             dev_preds = model(dev_images)
+            batch_labels.append(dev_labels)
+            batch_preds.append(dev_preds)
 
-            sigmoid_dev_preds = torch.sigmoid(dev_preds)
-            dev_auc_easy = roc_auc_score(dev_labels.cpu().numpy(), sigmoid_dev_preds.cpu().numpy())
-            average_precision = average_precision_score(dev_labels.cpu().numpy(), sigmoid_dev_preds.cpu().numpy())
+            if len(batch_preds) == batch_size:
 
-            aucs.append(dev_auc_easy)
-            aps.append(average_precision)
+                sigmoid_dev_preds = torch.sigmoid(torch.stack(batch_preds))
+
+                dev_auc_easy = roc_auc_score(torch.stack(batch_labels).cpu().numpy(),
+                                             sigmoid_dev_preds.cpu().numpy())
+                average_precision = average_precision_score(torch.stack(batch_labels).cpu().numpy(),
+                                                            sigmoid_dev_preds.cpu().numpy())
+
+                aucs.append(dev_auc_easy)
+                aps.append(average_precision)
 
     return dev_auc_easy, aucs, aps
 
@@ -180,7 +199,9 @@ for epoch in range(epochs):
         images = batch['images']
         labels = batch['labels'].float()
 
-        optimizer.zero_grad()
+        if use_cuda:
+            images = images.cuda()
+            labels = labels.cuda()
 
         logits = model(images)
         batch_logits.append(logits)

@@ -17,7 +17,11 @@ def get_study_level_data(study_type):
     study_data = {}
     study_label = {'positive': 1, 'negative': 0}
     for phase in data_cat:
+
+        # drive/My Drive/DeepLearningProject/
         BASE_DIR = 'MURA-v1.1/%s/%s/' % (phase, study_type)
+
+        # BASE_DIR = 'drive/My Drive/DeepLearningProject/MURA-v1.1/%s/%s/' % (phase, study_type)
         patients = list(os.walk(BASE_DIR))[0][1]  # list of patient folder names
         study_data[phase] = pd.DataFrame(columns=['Path', 'Count', 'Label'])
         i = 0
@@ -67,11 +71,13 @@ def get_dataloaders(data, batch_size=8, study_level=False):
                 transforms.Resize((image_shape[0], image_shape[1])),
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomRotation(10),
+                # transforms.Grayscale(),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'valid': transforms.Compose([
             transforms.Resize((image_shape[0], image_shape[1])),
+            # transforms.Grayscale(),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
