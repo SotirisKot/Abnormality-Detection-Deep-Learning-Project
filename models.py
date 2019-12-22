@@ -47,8 +47,13 @@ class MLP_With_Average_Pooling(Module):
         self.dropout     = dropout
 
         # affine = True means it has learnable parameters
-        self.batchnorm_1    = nn.BatchNorm1d(self.hidden_1, affine=True)
-        self.batchnorm_3    = nn.BatchNorm1d(self.hidden_3, affine=True)
+
+        # batchnorm does not work for input of dim: [1, x]
+        # the 1 is the problem -- this happens when a patient has only 1 x-ray
+        # https://discuss.pytorch.org/t/error-expected-more-than-1-value-per-channel-when-training/26274
+
+        # self.batchnorm_1    = nn.BatchNorm1d(self.hidden_1, affine=True)
+        # self.batchnorm_3    = nn.BatchNorm1d(self.hidden_3, affine=True)
 
         # self.batchnorm_2 = nn.BatchNorm1d(self.hidden_2, affine=True)
 
@@ -66,22 +71,31 @@ class MLP_With_Average_Pooling(Module):
     def forward(self, images):
 
         # flatten the images
+
+        # squeeze the first dim...it is the batch_size = 1
+        images  = images.squeeze(0)
         images  = images.view(images.shape[0], -1)
 
         output  = self.layer_1(images)
-        output  = self.batchnorm_1(output)
+
+        # output  = self.batchnorm_1(output)
+        output  = F.dropout(output, self.dropout, self.training)
+
         output  = self.leaky_relu(output)
 
         output  = self.layer_2(output)
         output  = self.leaky_relu(output)
 
         output = self.layer_3(output)
-        output = self.batchnorm_3(output)
+
+        # output = self.batchnorm_3(output)
+        output = F.dropout(output, self.dropout, self.training)
+
         output = self.leaky_relu(output)
 
         output  = self.final_layer(output)
         output  = torch.mean(output)
 
         # do not add sigmoid...BCEWithLogitsLoss does this
-        return output
+        return output.unsqueeze(-1)
 

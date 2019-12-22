@@ -52,7 +52,7 @@ class MURA_dataset(Dataset):
             images.append(self.transform(image))
         images = torch.stack(images)
         label = self.df.iloc[image_idx, 2]
-        sample = {'images': images, 'label': label}
+        sample = {'images': images, 'labels': label}
         return sample
 
 
@@ -60,25 +60,25 @@ def get_dataloaders(data, batch_size=8, study_level=False):
 
     # IN THE PAPER THEY RESCALE THE IMAGES TO 320 x 320
     # THEY AUGMENT THE DATA WITH INVERSIONS AND ROTATIONS.
-    image_shape = 100*100
+    image_shape = (100, 100)
 
     data_transforms = {
         'train': transforms.Compose([
-                transforms.Resize((image_shape, image_shape)),
+                transforms.Resize((image_shape[0], image_shape[1])),
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomRotation(10),
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'valid': transforms.Compose([
-            transforms.Resize((image_shape, image_shape)),
+            transforms.Resize((image_shape[0], image_shape[1])),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
     }
     image_datasets = {x: MURA_dataset(data[x], transform=data_transforms[x]) for x in data_cat}
     dataloaders = {x: DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True) for x in data_cat}
-    return dataloaders, image_shape
+    return dataloaders, image_shape[0] * image_shape[1]
 
 
 # ================================ TEST THE DATALOADERS ================================ #
@@ -88,20 +88,20 @@ def get_dataloaders(data, batch_size=8, study_level=False):
 # THE BEST RESULTS ARE ON FINGER AND WRIST STUDIES
 
 # study_data = get_study_level_data(study_type='XR_WRIST')
-
-
-# MAYBE IT IS WRONG TO SET BATCH_SIZE > 1. BECAUSE THEN YOU FEED FOR EXAMPLE STUDIES WHERE EACH STUDY HAS ONE OR MORE
-# VIEWS. SOME HAVE 3 VIEWS, OTHER HAS 7 VIEWS. WHEN YOU BATCH THE STUDIES YOU STILL NEED TO MASK THE VIEWS THAT BELONG
-# TO EACH STUDY.
-# IF WE SET BATCH_SIZE = 1, THEN WE JUST NEED TO CLASSIFY ONE STUDY WITH ONE OR MORE VIEWS.
-# WE CAN FORWARD MANY STUDIES AND THEN BACKPROPAGATE THROUGH ALL OF THEM LIKE DIMITRIS DOES.
-
+#
+#
+# # MAYBE IT IS WRONG TO SET BATCH_SIZE > 1. BECAUSE THEN YOU FEED FOR EXAMPLE STUDIES WHERE EACH STUDY HAS ONE OR MORE
+# # VIEWS. SOME HAVE 3 VIEWS, OTHER HAS 7 VIEWS. WHEN YOU BATCH THE STUDIES YOU STILL NEED TO MASK THE VIEWS THAT BELONG
+# # TO EACH STUDY.
+# # IF WE SET BATCH_SIZE = 1, THEN WE JUST NEED TO CLASSIFY ONE STUDY WITH ONE OR MORE VIEWS.
+# # WE CAN FORWARD MANY STUDIES AND THEN BACKPROPAGATE THROUGH ALL OF THEM LIKE DIMITRIS DOES.
+#
 # dataloaders = get_dataloaders(study_data, batch_size=1)
 # dataset_sizes = {x: len(study_data[x]) for x in data_cat}
-
-
-# test the dataloaders
-
-# for batch in dataloaders['train']:
+#
+#
+# # test the dataloaders
+#
+# for batch in dataloaders[0]['train']:
 #     print(batch)
 

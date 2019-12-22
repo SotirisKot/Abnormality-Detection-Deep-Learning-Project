@@ -82,6 +82,17 @@ def back_prop(batch_costs):
     return batch_aver_cost
 
 
+# HERE YOU PASS POSITIVE AND NEGATIVE WEIGHTS
+# IT IS THE LOSS FROM THE PAPER
+def weighted_binary_cross_entropy(output, target, weights=None):
+    if weights is not None:
+        assert len(weights) == 2
+        loss = weights[1] * (target * torch.log(output)) + weights[0] * ((1 - target) * torch.log(1 - output))
+    else:
+        loss = target * torch.log(output) + (1 - target) * torch.log(1 - output)
+    return torch.neg(torch.mean(loss))
+
+
 # load data for one study
 study_data = get_study_level_data(study_type='XR_WRIST')
 
@@ -106,14 +117,14 @@ pos_weight          = torch.FloatTensor(np.array(num_abnormal_images / (num_abno
 
 
 lr                  = 0.001
-batch_size          = 64
-epochs               = 10
-model               = MLP_With_Average_Pooling(input_dim=image_shape,
+batch_size          = 8
+epochs              = 10
+model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
                                                n_classes=1,
                                                hidden_1=5000,
                                                hidden_2=1000,
                                                hidden_3=100,
-                                               dropout=0.0)
+                                               dropout=0.3)
 
 print_params(model)
 
@@ -153,8 +164,11 @@ def evaluate(iterator, model):
 
 
 for epoch in range(epochs):
+
     model.train()
     batch_costs   = []
+    batch_logits  = []
+    batch_labels  = []
     epoch_costs   = []
     train_aucs    = []
     dev_aucs      = []
@@ -164,23 +178,32 @@ for epoch in range(epochs):
     for batch in tqdm(train_iterator):
 
         images = batch['images']
-        labels = batch['labels']
+        labels = batch['labels'].float()
 
         optimizer.zero_grad()
-        logits = model(images)
-        cost   = loss(logits, labels)
 
-        train_auc_easy = roc_auc_score(labels.cpu().detach().numpy(), torch.sigmoid(logits).cpu().detach().numpy())
-        train_aucs.append(train_auc_easy)
+        logits = model(images)
+        batch_logits.append(logits)
+        batch_labels.append(labels)
+
+        cost   = loss(logits, labels)
 
         # CLIPPING IF IT IS NEEDED
         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.25)
-        batch_costs.append(cost.cpu().item())
+        batch_costs.append(cost)
 
         if len(batch_costs) == batch_size:
+
             batch_aver_cost = back_prop(batch_costs)
             epoch_costs.append(batch_aver_cost)
-            batch_costs = []
+
+            train_auc_easy = roc_auc_score(torch.stack(batch_labels).cpu().detach().numpy(),
+                                           torch.sigmoid(torch.stack(batch_logits)).cpu().detach().numpy())
+            train_aucs.append(train_auc_easy)
+
+            batch_costs  = []
+            batch_logits = []
+            batch_labels = []
 
     print('Epoch Average Loss: {}, Epoch Average AUC: {}, Epoch: {} '.format(
         sum(epoch_costs) / float(len(epoch_costs)), np.mean(train_aucs), epoch))
