@@ -30,8 +30,8 @@ import argparse
 
 from dataloader import get_study_level_data, get_dataloaders
 
-odir_checkpoint = './checkpoints/'
-# odir_checkpoint = 'drive/My Drive/DeepLearningProject/checkpoints/'
+# odir_checkpoint = './checkpoints/'
+odir_checkpoint = 'drive/My Drive/DeepLearningProject/checkpoints/'
 
 best_chekpoint_name = 'mlp_with_average_pooling.pth.tar'
 
@@ -96,7 +96,7 @@ def weighted_binary_cross_entropy(output, target, weights=None):
 
 
 # load data for one study
-study_data = get_study_level_data(study_type='XR_WRIST')
+study_data = get_study_level_data(study_type='XR_ELBOW')
 
 # dataloaders for a study
 data_cat = ['train', 'valid']
@@ -120,13 +120,33 @@ pos_weight          = torch.FloatTensor(np.array(num_abnormal_images / (num_abno
 
 lr                  = 0.001
 batch_size          = 64
-epochs              = 1
-model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
-                                               n_classes=1,
-                                               hidden_1=5000,
-                                               hidden_2=1000,
-                                               hidden_3=100,
-                                               dropout=0.3)
+epochs              = 10
+
+
+# some pretrained models that we can use
+pretrained          = False
+pretrained_model    = 'densenet121'
+
+# pretrained_model    = 'densenet169'
+# pretrained_model    = 'densenet201'
+# pretrained_model    = 'densenet161'
+
+# ================================== DEFINE MODEL ================================== #
+
+
+if pretrained:
+    pass
+else:
+
+    model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
+                                                   n_classes=1,
+                                                   hidden_1=5000,
+                                                   hidden_2=1000,
+                                                   hidden_3=100,
+                                                   dropout=0.3)
+
+
+# ==================================              ================================== #
 
 print_params(model)
 
@@ -143,6 +163,7 @@ best_epoch          = 0
 
 
 if use_cuda:
+    print('GPU available!!')
     model = model.cuda()
 
 

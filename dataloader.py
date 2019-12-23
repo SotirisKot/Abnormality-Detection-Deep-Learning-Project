@@ -19,9 +19,9 @@ def get_study_level_data(study_type):
     for phase in data_cat:
 
         # drive/My Drive/DeepLearningProject/
-        BASE_DIR = 'MURA-v1.1/%s/%s/' % (phase, study_type)
+        # BASE_DIR = 'MURA-v1.1/%s/%s/' % (phase, study_type)
 
-        # BASE_DIR = 'drive/My Drive/DeepLearningProject/MURA-v1.1/%s/%s/' % (phase, study_type)
+        BASE_DIR = 'drive/My Drive/DeepLearningProject/MURA-v1.1/%s/%s/' % (phase, study_type)
         patients = list(os.walk(BASE_DIR))[0][1]  # list of patient folder names
         study_data[phase] = pd.DataFrame(columns=['Path', 'Count', 'Label'])
         i = 0
@@ -73,6 +73,9 @@ def get_dataloaders(data, batch_size=8, study_level=False):
                 transforms.RandomRotation(10),
                 # transforms.Grayscale(),
                 transforms.ToTensor(),
+                # these normalization are from the densenet
+                # mean = [0.485, 0.456, 0.406]
+                # std  = [0.229, 0.224, 0.225]
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ]),
         'valid': transforms.Compose([
@@ -93,7 +96,7 @@ def get_dataloaders(data, batch_size=8, study_level=False):
 # IN THE PAPER THEY ALSO HAVE DIFFERENT RESULTS FOR EACH STUDY_TYPE
 # THE BEST RESULTS ARE ON FINGER AND WRIST STUDIES
 
-# study_data = get_study_level_data(study_type='XR_WRIST')
+# study_data = get_study_level_data(study_type='XR_ELBOW')
 #
 #
 # # MAYBE IT IS WRONG TO SET BATCH_SIZE > 1. BECAUSE THEN YOU FEED FOR EXAMPLE STUDIES WHERE EACH STUDY HAS ONE OR MORE
@@ -104,10 +107,10 @@ def get_dataloaders(data, batch_size=8, study_level=False):
 #
 # dataloaders = get_dataloaders(study_data, batch_size=1)
 # dataset_sizes = {x: len(study_data[x]) for x in data_cat}
-#
-#
-# # test the dataloaders
-#
-# for batch in dataloaders[0]['train']:
-#     print(batch)
-
+# #
+# #
+# # # test the dataloaders
+# #
+# for batch in tqdm(dataloaders[0]['train']):
+#     # print(batch)
+#     pass
