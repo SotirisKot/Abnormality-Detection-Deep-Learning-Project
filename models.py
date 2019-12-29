@@ -13,6 +13,7 @@ from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 from torch.nn.utils.rnn import pack_padded_sequence
+from torchvision import models
 
 use_cuda = torch.cuda.is_available()
 torch.manual_seed(seed)
@@ -86,12 +87,12 @@ class MLP_With_Average_Pooling(Module):
         output  = self.layer_2(output)
         output  = self.leaky_relu(output)
 
-        output = self.layer_3(output)
+        output  = self.layer_3(output)
 
         # output = self.batchnorm_3(output)
         output = F.dropout(output, self.dropout, self.training)
 
-        output = self.leaky_relu(output)
+        output  = self.leaky_relu(output)
 
         output  = self.final_layer(output)
         output  = torch.mean(output)
@@ -110,3 +111,43 @@ model_urls = {
     'densenet161': 'https://download.pytorch.org/models/densenet161-8d451a50.pth',
 }
 
+
+class PretrainedDensenet(nn.Module):
+    def __init__(self, model_name, num_class=1):
+        super().__init__()
+
+        self.channels = 1664
+        densenet_169 = models.densenet169(pretrained=True)
+
+        for params in densenet_169.parameters():
+            params.requires_grad_(False)
+
+        # this is probably used to create a 3-d input because the first conv of features takes
+        # in_channel = 3
+        # self.conv1 = nn.Conv2d(in_channels=2, out_channels=3, kernel_size=4)
+
+        # here we get the part of the model where the feature extraction is happening
+        # in that way we can add on top of the feature extractor our own classifier as in the MURA paper
+        # if we used densenet169.classifier we would get the final linear layer used for classification
+        self.features = nn.Sequential(*list(densenet_169.features.children()))
+
+        self.relu = nn.ReLU(inplace=True)
+        self.fc1 = nn.Linear(self.channels, num_class)
+
+        # self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+
+        # we must squeeze the first dimension ---> it is the batch_size
+        x        = x.squeeze(0)
+
+        # i think we do not need it
+        # x        = self.conv1(x)
+
+        features = self.features(x)
+        out      = self.relu(features)
+        out      = nn.functional.adaptive_avg_pool2d(out, (1, 1))
+        out      = out.view(-1, self.channels)
+        out      = self.fc1(out)
+
+        return torch.mean(out).squeeze()

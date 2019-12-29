@@ -64,7 +64,7 @@ def get_dataloaders(data, batch_size=8, study_level=False):
 
     # IN THE PAPER THEY RESCALE THE IMAGES TO 320 x 320
     # THEY AUGMENT THE DATA WITH INVERSIONS AND ROTATIONS.
-    image_shape = (100, 100)
+    image_shape = (320, 320)
 
     data_transforms = {
         'train': transforms.Compose([

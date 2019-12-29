@@ -23,7 +23,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import pickle
 from torch.utils.data import DataLoader
-from models import MLP_With_Average_Pooling
+from models import MLP_With_Average_Pooling, PretrainedDensenet
 from sklearn.metrics import roc_curve, auc, roc_auc_score, average_precision_score
 import re
 import argparse
@@ -124,7 +124,7 @@ epochs              = 10
 
 
 # some pretrained models that we can use
-pretrained          = False
+pretrained          = True
 pretrained_model    = 'densenet121'
 
 # pretrained_model    = 'densenet169'
@@ -135,7 +135,7 @@ pretrained_model    = 'densenet121'
 
 
 if pretrained:
-    pass
+    model               = PretrainedDensenet(pretrained_model, num_class=1)
 else:
 
     model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
