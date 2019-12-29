@@ -146,8 +146,16 @@ class PretrainedDensenet(nn.Module):
 
         features = self.features(x)
         out      = self.relu(features)
+
+        # applies average_pooling but it is adaptive..because it can reduce the dimensions
+        # to whatever we like
+        # out has dimensions of [#views, 1664, 10, 10]
+        # using adaptive_avg_pool2d we can make it:
+        # [#views, 1664, 1, 1] --> we do not specify a kernel_size
+        # --> pytorch infers it (this is why it is called adaptive)
         out      = nn.functional.adaptive_avg_pool2d(out, (1, 1))
+
         out      = out.view(-1, self.channels)
         out      = self.fc1(out)
 
-        return torch.mean(out).squeeze()
+        return torch.mean(out).unsqueeze(0)
