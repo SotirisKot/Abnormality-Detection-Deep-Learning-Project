@@ -119,19 +119,25 @@ class PretrainedDensenet(nn.Module):
         self.channels = 1664
         densenet_169 = models.densenet169(pretrained=True)
 
-        for params in densenet_169.parameters():
-            params.requires_grad_(False)
-
-        # this is probably used to create a 3-d input because the first conv of features takes
-        # in_channel = 3
-        # self.conv1 = nn.Conv2d(in_channels=2, out_channels=3, kernel_size=4)
+        # densenet_121 = models.densenet121(pretrained=True)
+        # how_many = 0
+        # for params in densenet_169.parameters():
+        #     params.requires_grad_(False)
+        #     how_many += 1
+        #     if how_many == 400:
+        #         break
 
         # here we get the part of the model where the feature extraction is happening
         # in that way we can add on top of the feature extractor our own classifier as in the MURA paper
         # if we used densenet169.classifier we would get the final linear layer used for classification
         self.features = nn.Sequential(*list(densenet_169.features.children()))
 
+        # freeze certain blocks
+        for mod in self.features[:9]:
+            mod.requires_grad_(False)
+
         self.relu = nn.ReLU(inplace=True)
+        self.leaky_relu = F.leaky_relu
         self.fc1 = nn.Linear(self.channels, num_class)
 
         # self.sigmoid = nn.Sigmoid()
@@ -141,11 +147,8 @@ class PretrainedDensenet(nn.Module):
         # we must squeeze the first dimension ---> it is the batch_size
         x        = x.squeeze(0)
 
-        # i think we do not need it
-        # x        = self.conv1(x)
-
         features = self.features(x)
-        out      = self.relu(features)
+        out      = self.leaky_relu(features)
 
         # applies average_pooling but it is adaptive..because it can reduce the dimensions
         # to whatever we like
@@ -158,4 +161,5 @@ class PretrainedDensenet(nn.Module):
         out      = out.view(-1, self.channels)
         out      = self.fc1(out)
 
-        return torch.mean(out).unsqueeze(0)
+        return torch.mean(torch.sigmoid(out)).unsqueeze(0)
+

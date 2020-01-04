@@ -33,7 +33,7 @@ from dataloader import get_study_level_data, get_dataloaders
 # odir_checkpoint = './checkpoints/'
 odir_checkpoint = 'drive/My Drive/DeepLearningProject/checkpoints/'
 
-best_chekpoint_name = 'mlp_with_average_pooling.pth.tar'
+best_chekpoint_name = 'pretrained_densenet169.pth.tar'
 
 if not os.path.exists(odir_checkpoint):
     os.makedirs(odir_checkpoint)
@@ -125,9 +125,9 @@ epochs              = 10
 
 # some pretrained models that we can use
 pretrained          = True
-pretrained_model    = 'densenet121'
+pretrained_model    = 'densenet169'
 
-# pretrained_model    = 'densenet169'
+# pretrained_model    = 'densenet121'
 # pretrained_model    = 'densenet201'
 # pretrained_model    = 'densenet161'
 
@@ -275,3 +275,9 @@ for epoch in range(epochs):
         save_checkpoint(state, filename=os.path.join(odir_checkpoint, best_chekpoint_name))
 
 
+print(40*'-')
+print("Best AUC {} at epoch: {}".format(best_auc, best_epoch))
+print(40*'-')
+
+print('=' * 90)
+print()

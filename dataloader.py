@@ -19,9 +19,9 @@ def get_study_level_data(study_type):
     for phase in data_cat:
 
         # drive/My Drive/DeepLearningProject/
-        # BASE_DIR = 'MURA-v1.1/%s/%s/' % (phase, study_type)
+        BASE_DIR = 'MURA-v1.1/%s/%s/' % (phase, study_type)
 
-        BASE_DIR = 'drive/My Drive/DeepLearningProject/MURA-v1.1/%s/%s/' % (phase, study_type)
+        # BASE_DIR = 'drive/My Drive/DeepLearningProject/MURA-v1.1/%s/%s/' % (phase, study_type)
         patients = list(os.walk(BASE_DIR))[0][1]  # list of patient folder names
         study_data[phase] = pd.DataFrame(columns=['Path', 'Count', 'Label'])
         i = 0
@@ -63,8 +63,9 @@ class MURA_dataset(Dataset):
 def get_dataloaders(data, batch_size=8, study_level=False):
 
     # IN THE PAPER THEY RESCALE THE IMAGES TO 320 x 320
+    # DENSENET HOWEVER IS TRAINED ON 224 x 224 IMAGES
     # THEY AUGMENT THE DATA WITH INVERSIONS AND ROTATIONS.
-    image_shape = (320, 320)
+    image_shape = (224, 224)
 
     data_transforms = {
         'train': transforms.Compose([
