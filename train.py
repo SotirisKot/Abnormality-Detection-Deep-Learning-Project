@@ -200,6 +200,9 @@ def evaluate(iterator, model):
                 aucs.append(dev_auc_easy)
                 aps.append(average_precision)
 
+                batch_labels = []
+                batch_preds  = []
+
     return dev_auc_easy, aucs, aps
 
 
