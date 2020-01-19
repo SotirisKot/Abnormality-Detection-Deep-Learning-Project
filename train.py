@@ -2,15 +2,18 @@ seed = 1997
 
 import random
 from random import shuffle
+
 random.seed(seed)
 
 import numpy as np
+
 np.random.seed(seed)
 
 import os
 import scipy.sparse as sp
 
 import torch
+
 use_cuda = torch.cuda.is_available()
 torch.manual_seed(seed)
 if use_cuda:
@@ -28,18 +31,27 @@ from sklearn.metrics import roc_curve, auc, roc_auc_score, average_precision_sco
 import re
 import argparse
 import logging
-
+import pandas as pd
 
 from dataloader import get_study_level_data, get_dataloaders
 
 odir_checkpoint = './checkpoints/'
 # odir_checkpoint = './logs/'
+# odir_checkpoint = 'drive/My Drive/DeepLearningProject/checkpoints/'
 
+hdlr = None
+# study = 'XR_WRIST'
 
-hdlr  = None
-study = 'XR_FINGER'
+study_wrist = 'XR_WRIST'
+study_elbow = 'XR_ELBOW'
+study_finger = 'XR_FINGER'
+study_forearm = 'XR_FOREARM'
+study_hand = 'XR_HAND'
+study_humerus = 'XR_HUMERUS'
+study_shoulder = 'XR_SHOULDER'
 
-best_chekpoint_name = 'simple_cnn_no_dropout_{}.pth.tar'.format(study)
+# best_chekpoint_name = 'simple_cnn_no_dropout_{}.pth.tar'.format(study)
+best_chekpoint_name = 'simple_cnn_no_dropout_all_studies.pth.tar'
 
 if not os.path.exists(odir_checkpoint):
     os.makedirs(odir_checkpoint)
@@ -90,7 +102,7 @@ def init_the_logger(hdlr):
     if (hdlr is not None):
         logger.removeHandler(hdlr)
 
-    hdlr = logging.FileHandler(os.path.join(odir_checkpoint, 'simple_cnn_dropout_{}.log'.format(study)))
+    hdlr = logging.FileHandler(os.path.join(odir_checkpoint, 'simple_cnn_dropout_all_studies'))
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
@@ -122,13 +134,40 @@ def weighted_binary_cross_entropy(output, target, weights=None):
 
 
 # load data for one study
-study_data = get_study_level_data(study_type=study)
+# study_data = get_study_level_data(study_type=study)
 
+study_data_elbow = get_study_level_data(study_elbow)
+study_data_finger = get_study_level_data(study_finger)
+study_data_forearm = get_study_level_data(study_forearm)
+study_data_hand = get_study_level_data(study_hand)
+study_data_wrist = get_study_level_data(study_wrist)
+study_data_shoulder = get_study_level_data(study_shoulder)
+study_data_humerus = get_study_level_data(study_humerus)
+
+frames_train = [study_data_elbow['train'],
+                study_data_finger['train'],
+                study_data_forearm['train'],
+                study_data_hand['train'],
+                study_data_wrist['train'],
+                study_data_shoulder['train'],
+                study_data_humerus['train']]
+
+frames_dev = [study_data_elbow['valid'],
+              study_data_finger['valid'],
+              study_data_forearm['valid'],
+              study_data_hand['valid'],
+              study_data_wrist['valid'],
+              study_data_shoulder['valid'],
+              study_data_humerus['valid']]
+
+
+study_data = {'train': pd.concat(frames_train), 'valid': pd.concat(frames_dev)}
+print()
+# load for all the studies
 # dataloaders for a study
 data_cat = ['train', 'valid']
 dataloaders, image_shape = get_dataloaders(study_data, batch_size=1)
 dataset_sizes = {x: len(study_data[x]) for x in data_cat}
-
 
 # find weights for the positive class (as pos_weight)
 # this loss will be different from the paper
@@ -136,22 +175,20 @@ dataset_sizes = {x: len(study_data[x]) for x in data_cat}
 
 # abnormal is our positive / we find how many views are abnormal and normal
 # not the studies
-train_dataframe     = study_data['train']
+train_dataframe = study_data['train']
 num_abnormal_images = train_dataframe[train_dataframe['Path'].str.contains('positive')]['Count'].sum()
-num_normal_images   = train_dataframe[train_dataframe['Path'].str.contains('negative')]['Count'].sum()
+num_normal_images = train_dataframe[train_dataframe['Path'].str.contains('negative')]['Count'].sum()
 
 # abnormal weight
-pos_weight          = torch.FloatTensor(np.array(num_abnormal_images / (num_abnormal_images + num_normal_images)))
+pos_weight = torch.FloatTensor(np.array(num_abnormal_images / (num_abnormal_images + num_normal_images)))
 
-
-lr                  = 0.001
-batch_size          = 64
-epochs              = 10
-
+lr = 0.001
+batch_size = 64
+epochs = 10
 
 # some pretrained models that we can use
-pretrained          = False
-pretrained_model    = 'densenet169'
+pretrained = False
+pretrained_model = 'densenet169'
 
 # pretrained_model    = 'densenet121'
 # pretrained_model    = 'densenet201'
@@ -161,7 +198,7 @@ pretrained_model    = 'densenet169'
 
 
 if pretrained:
-    model               = PretrainedDensenet(pretrained_model, num_class=1)
+    model = PretrainedDensenet(pretrained_model, num_class=1)
 else:
 
     # model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
@@ -177,22 +214,20 @@ else:
                                      n_filters_2=20,
                                      dropout=0.3)
 
-
 # ==================================              ================================== #
 
 print_params(model)
 
-paramaters          = model.parameters()
+paramaters = model.parameters()
 
-loss                = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-optimizer           = torch.optim.Adam(params=paramaters, lr=lr)
+loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+optimizer = torch.optim.Adam(params=paramaters, lr=lr)
 
-train_iterator      = dataloaders['train']
-dev_iterator        = dataloaders['valid']
+train_iterator = dataloaders['train']
+dev_iterator = dataloaders['valid']
 
-best_auc            = -1000.0
-best_epoch          = 0
-
+best_auc = -1000.0
+best_epoch = 0
 
 if use_cuda:
     print('GPU available!!')
@@ -202,10 +237,10 @@ if use_cuda:
 def evaluate(iterator, model):
     with torch.no_grad():
         model.eval()
-        batch_preds  = []
+        batch_preds = []
         batch_labels = []
-        aucs         = []
-        aps          = []
+        aucs = []
+        aps = []
         for ev_batch in iterator:
 
             dev_images = ev_batch['images']
@@ -221,7 +256,6 @@ def evaluate(iterator, model):
             batch_preds.append(dev_preds)
 
             if len(batch_preds) == batch_size:
-
                 sigmoid_dev_preds = torch.sigmoid(torch.stack(batch_preds))
 
                 dev_auc_easy = roc_auc_score(torch.stack(batch_labels).cpu().numpy(),
@@ -233,7 +267,7 @@ def evaluate(iterator, model):
                 aps.append(average_precision)
 
                 batch_labels = []
-                batch_preds  = []
+                batch_preds = []
 
     return dev_auc_easy, aucs, aps
 
@@ -241,13 +275,13 @@ def evaluate(iterator, model):
 for epoch in range(epochs):
 
     model.train()
-    batch_costs   = []
-    batch_logits  = []
-    batch_labels  = []
-    epoch_costs   = []
-    train_aucs    = []
-    dev_aucs      = []
-    dev_aps       = []
+    batch_costs = []
+    batch_logits = []
+    batch_labels = []
+    epoch_costs = []
+    train_aucs = []
+    dev_aucs = []
+    dev_aps = []
     optimizer.zero_grad()
 
     for batch in tqdm(train_iterator):
@@ -263,14 +297,13 @@ for epoch in range(epochs):
         batch_logits.append(logits)
         batch_labels.append(labels)
 
-        cost   = loss(logits, labels)
+        cost = loss(logits, labels)
 
         # CLIPPING IF IT IS NEEDED
         # torch.nn.utils.clip_grad_norm_(model.parameters(), 0.25)
         batch_costs.append(cost)
 
         if len(batch_costs) == batch_size:
-
             batch_aver_cost = back_prop(batch_costs)
             epoch_costs.append(batch_aver_cost)
 
@@ -278,7 +311,7 @@ for epoch in range(epochs):
                                            torch.sigmoid(torch.stack(batch_logits)).cpu().detach().numpy())
             train_aucs.append(train_auc_easy)
 
-            batch_costs  = []
+            batch_costs = []
             batch_logits = []
             batch_labels = []
 
@@ -318,16 +351,15 @@ for epoch in range(epochs):
 
         save_checkpoint(state, filename=os.path.join(odir_checkpoint, best_chekpoint_name))
 
-
-print(40*'-')
+print(40 * '-')
 print("Best AUC {} at epoch: {}".format(best_auc, best_epoch))
-print(40*'-')
+print(40 * '-')
 
 print('=' * 90)
 print()
 
-logger.info(40*'-')
+logger.info(40 * '-')
 logger.info("Best AUC {} at epoch: {}".format(best_auc, best_epoch))
-logger.info(40*'-')
+logger.info(40 * '-')
 
 logger.info('=' * 90)
