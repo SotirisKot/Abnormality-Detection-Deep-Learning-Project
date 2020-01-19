@@ -49,8 +49,8 @@ class MLP_With_Average_Pooling(Module):
 
         # affine = True means it has learnable parameters
 
-        # batchnorm does not work for input of dim: [1, x]
-        # the 1 is the problem -- this happens when a patient has only 1 x-ray
+        # BATCHNORM DOES NOT WORK FOR INPUT OF DIM: [1, X]
+        # THE 1 IS THE PROBLEM -- THIS HAPPENS WHEN A PATIENT HAS ONLY 1 X-RAY
         # https://discuss.pytorch.org/t/error-expected-more-than-1-value-per-channel-when-training/26274
 
         # self.batchnorm_1    = nn.BatchNorm1d(self.hidden_1, affine=True)
@@ -119,7 +119,10 @@ class CNN_With_Average_Pooling(Module):
         self.conv1            = nn.Conv2d(3, n_filters_1, kernel_size=5)
         self.conv2            = nn.Conv2d(n_filters_1, n_filters_2, kernel_size=5)
 
-        self.final_layer      = nn.Linear(1620, self.n_classes, bias=True)
+        self.hidden_layer     = nn.Linear(1620, 500, bias=True)
+        # self.hidden_layer2    = nn.Linear(500, 100, bias=True)
+        self.final_layer      = nn.Linear(500, self.n_classes, bias=True)  # for 100x100
+        # self.final_layer = nn.Linear(20*23*23, self.n_classes, bias=True)
 
     def init_weights(self, scale=1e-4):
 
@@ -129,6 +132,8 @@ class CNN_With_Average_Pooling(Module):
         for param in self.conv2.parameters():
             nn.init.uniform_(param, a=-scale, b=scale)
 
+        torch.nn.init.xavier_uniform_(self.hidden_layer.weight)
+        # torch.nn.init.xavier_uniform_(self.hidden_layer2.weight)
         torch.nn.init.xavier_uniform_(self.final_layer.weight)
 
     def forward(self, images):
@@ -154,54 +159,56 @@ class CNN_With_Average_Pooling(Module):
 
         output  = output.view(images.shape[0], -1)
 
+        # MLP
+        output = self.leaky_relu(self.hidden_layer(output))
+
+        # output = self.leaky_relu(self.hidden_layer2(output))
+
+        # Perform max pooling amongst the views
+        output = torch.max(output, dim=0)[0].view(-1)
+
         output  = self.final_layer(output)
 
-        output  = torch.mean(output)
+        # ALT METHOD
+        # output  = torch.mean(output)
 
         # do not add sigmoid...BCEWithLogitsLoss does this
-        return output.unsqueeze(-1)
+        # ALT METHOD
+        # return output.unsqueeze(-1)
+        return output
 
 
 # =========================== FROM TORCHVISION =========================== #
 # https://github.com/pytorch/vision/blob/master/torchvision/models/densenet.py
 
-model_urls = {
-    'densenet121': 'https://download.pytorch.org/models/densenet121-a639ec97.pth',
-    'densenet169': 'https://download.pytorch.org/models/densenet169-b2777c0a.pth',
-    'densenet201': 'https://download.pytorch.org/models/densenet201-c1103571.pth',
-    'densenet161': 'https://download.pytorch.org/models/densenet161-8d451a50.pth',
-}
-
 
 class PretrainedDensenet(nn.Module):
-    def __init__(self, model_name, num_class=1):
+    def __init__(self, num_class=1):
         super().__init__()
 
-        self.channels = 1664
+        self.channels = 81536
         densenet_169 = models.densenet169(pretrained=True)
 
-        # densenet_121 = models.densenet121(pretrained=True)
-        # how_many = 0
-        # for params in densenet_169.parameters():
-        #     params.requires_grad_(False)
-        #     how_many += 1
-        #     if how_many == 400:
-        #         break
-
-        # here we get the part of the model where the feature extraction is happening
-        # in that way we can add on top of the feature extractor our own classifier as in the MURA paper
-        # if we used densenet169.classifier we would get the final linear layer used for classification
+        # HERE WE GET THE PART OF THE MODEL WHERE THE FEATURE EXTRACTION IS HAPPENING
+        # IN THAT WAY WE CAN ADD ON TOP OF THE FEATURE EXTRACTOR OUR OWN CLASSIFIER AS IN THE MURA PAPER
+        # IF WE USED DENSENET169.CLASSIFIER WE WOULD GET THE FINAL LINEAR LAYER USED FOR CLASSIFICATION
         self.features = nn.Sequential(*list(densenet_169.features.children()))
 
         # freeze certain blocks
         for mod in self.features[:9]:
             mod.requires_grad_(False)
 
-        self.relu = nn.ReLU(inplace=True)
         self.leaky_relu = F.leaky_relu
-        self.fc1 = nn.Linear(self.channels, num_class)
+
+        self.hidden_layer = nn.Linear(self.channels, 500, bias=True)
+        self.final_layer = nn.Linear(500, num_class, bias=True)
 
         # self.sigmoid = nn.Sigmoid()
+
+    def init_weights(self, scale=1e-4):
+
+        torch.nn.init.xavier_uniform_(self.hidden_layer.weight)
+        torch.nn.init.xavier_uniform_(self.final_layer.weight)
 
     def forward(self, x):
 
@@ -213,16 +220,67 @@ class PretrainedDensenet(nn.Module):
         features = self.features(x)
         out      = self.leaky_relu(features)
 
-        # applies average_pooling but it is adaptive..because it can reduce the dimensions
-        # to whatever we like
-        # out has dimensions of [#views, 1664, 10, 10]
-        # using adaptive_avg_pool2d we can make it:
-        # [#views, 1664, 1, 1] --> we do not specify a kernel_size
-        # --> pytorch infers it (this is why it is called adaptive)
-        out      = nn.functional.adaptive_avg_pool2d(out, (1, 1))
+        # APPLIES AVERAGE_POOLING BUT IT IS ADAPTIVE..BECAUSE IT CAN REDUCE THE DIMENSIONS
+        # TO WHATEVER WE LIKE
+        # OUT HAS DIMENSIONS OF [#VIEWS, 1664, 10, 10]
+        # USING ADAPTIVE_AVG_POOL2D WE CAN MAKE IT:
+        # [#VIEWS, 1664, 1, 1] --> WE DO NOT SPECIFY A KERNEL_SIZE
+        # --> PYTORCH INFERS IT (THIS IS WHY IT IS CALLED ADAPTIVE)
+        # out      = nn.functional.adaptive_avg_pool2d(out, (1, 1))
 
-        out      = out.view(-1, self.channels)
-        out      = self.fc1(out)
+        # out      = out.view(-1, self.channels)
+        # out      = self.fc1(out)
+
+        # NEW STUFF
+
+        out = out.view(out.shape[0], -1)
+
+        # MLP
+        out = self.leaky_relu(self.hidden_layer(out))
+
+        # output = self.leaky_relu(self.hidden_layer2(output))
+
+        # Perform max pooling amongst the views
+        out = torch.max(out, dim=0)[0].view(-1)
+
+        out = self.final_layer(out)
+
+        # return torch.mean(torch.sigmoid(out)).unsqueeze(0)
+
+        return out
+
+
+
+class PretrainedResnet(nn.Module):
+    def __init__(self, num_class=1):
+        super().__init__()
+
+        self.channels = 2048
+        resnet101 = models.resnet101(pretrained=True)
+
+        # HERE WE GET ALL THE LAYERS EXCEPT FROM THE FC
+        self.features = nn.Sequential(*list(resnet101.children())[:-1])
+
+        # freeze certain blocks
+        for mod in self.features[:7]:
+            mod.requires_grad_(False)
+
+        self.leaky_relu = F.leaky_relu
+        self.fc1 = nn.Linear(self.channels, num_class)
+
+        # self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        # we must squeeze the first dimension ---> it is the batch_size
+        x = x.squeeze(0)
+
+        # TODO for later...upsample the image to 224x224 or maybe just use resize?? ask makis
+
+        features = self.features(x)
+
+        out = self.leaky_relu(features)
+
+        out = out.view(-1, self.channels)
+        out = self.fc1(out)
 
         return torch.mean(torch.sigmoid(out)).unsqueeze(0)
-

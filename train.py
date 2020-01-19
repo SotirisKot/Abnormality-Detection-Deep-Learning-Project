@@ -26,7 +26,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import pickle
 from torch.utils.data import DataLoader
-from models import MLP_With_Average_Pooling, PretrainedDensenet, CNN_With_Average_Pooling
+from models import MLP_With_Average_Pooling, PretrainedDensenet, PretrainedResnet, CNN_With_Average_Pooling
 from sklearn.metrics import roc_curve, auc, roc_auc_score, average_precision_score
 import re
 import argparse
@@ -102,7 +102,7 @@ def init_the_logger(hdlr):
     if (hdlr is not None):
         logger.removeHandler(hdlr)
 
-    hdlr = logging.FileHandler(os.path.join(odir_checkpoint, 'simple_cnn_dropout_all_studies'))
+    hdlr = logging.FileHandler(os.path.join(odir_checkpoint, 'simple_cnn_dropout_all_studies.log'))
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     hdlr.setFormatter(formatter)
     logger.addHandler(hdlr)
@@ -134,35 +134,36 @@ def weighted_binary_cross_entropy(output, target, weights=None):
 
 
 # load data for one study
-# study_data = get_study_level_data(study_type=study)
+study_data = get_study_level_data(study_type=study_humerus)
 
-study_data_elbow = get_study_level_data(study_elbow)
-study_data_finger = get_study_level_data(study_finger)
-study_data_forearm = get_study_level_data(study_forearm)
-study_data_hand = get_study_level_data(study_hand)
-study_data_wrist = get_study_level_data(study_wrist)
-study_data_shoulder = get_study_level_data(study_shoulder)
-study_data_humerus = get_study_level_data(study_humerus)
+# study_data_elbow = get_study_level_data(study_elbow)
+# study_data_finger = get_study_level_data(study_finger)
+# study_data_forearm = get_study_level_data(study_forearm)
+# study_data_hand = get_study_level_data(study_hand)
+# study_data_wrist = get_study_level_data(study_wrist)
+# study_data_shoulder = get_study_level_data(study_shoulder)
+# study_data_humerus = get_study_level_data(study_humerus)
 
-frames_train = [study_data_elbow['train'],
-                study_data_finger['train'],
-                study_data_forearm['train'],
-                study_data_hand['train'],
-                study_data_wrist['train'],
-                study_data_shoulder['train'],
-                study_data_humerus['train']]
+# frames_train = [study_data_elbow['train'],
+#                 study_data_finger['train'],
+#                 study_data_forearm['train'],
+#                 study_data_hand['train'],
+#                 study_data_wrist['train'],
+#                 study_data_shoulder['train'],
+#                 study_data_humerus['train']]
+#
+# frames_dev = [study_data_elbow['valid'],
+#               study_data_finger['valid'],
+#               study_data_forearm['valid'],
+#               study_data_hand['valid'],
+#               study_data_wrist['valid'],
+#               study_data_shoulder['valid'],
+#               study_data_humerus['valid']]
 
-frames_dev = [study_data_elbow['valid'],
-              study_data_finger['valid'],
-              study_data_forearm['valid'],
-              study_data_hand['valid'],
-              study_data_wrist['valid'],
-              study_data_shoulder['valid'],
-              study_data_humerus['valid']]
 
+# study_data = {'train': pd.concat(frames_train), 'valid': pd.concat(frames_dev)}
+# print()
 
-study_data = {'train': pd.concat(frames_train), 'valid': pd.concat(frames_dev)}
-print()
 # load for all the studies
 # dataloaders for a study
 data_cat = ['train', 'valid']
@@ -187,24 +188,20 @@ batch_size = 64
 epochs = 10
 
 # some pretrained models that we can use
-pretrained = False
-pretrained_model = 'densenet169'
-
-# pretrained_model    = 'densenet121'
-# pretrained_model    = 'densenet201'
-# pretrained_model    = 'densenet161'
+pretrained = True
 
 # ================================== DEFINE MODEL ================================== #
 
 
 if pretrained:
-    model = PretrainedDensenet(pretrained_model, num_class=1)
+    model = PretrainedDensenet(num_class=1)
+    # model = PretrainedResnet(num_class=1)
 else:
 
     # model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
     #                                                n_classes=1,
-    #                                                hidden_1=5000,
-    #                                                hidden_2=1000,
+    #                                                hidden_1=500,
+    #                                                hidden_2=200,
     #                                                hidden_3=100,
     #                                                dropout=0.3)
 
@@ -307,9 +304,9 @@ for epoch in range(epochs):
             batch_aver_cost = back_prop(batch_costs)
             epoch_costs.append(batch_aver_cost)
 
-            train_auc_easy = roc_auc_score(torch.stack(batch_labels).cpu().detach().numpy(),
+            train_auc = roc_auc_score(torch.stack(batch_labels).cpu().detach().numpy(),
                                            torch.sigmoid(torch.stack(batch_logits)).cpu().detach().numpy())
-            train_aucs.append(train_auc_easy)
+            train_aucs.append(train_auc)
 
             batch_costs = []
             batch_logits = []

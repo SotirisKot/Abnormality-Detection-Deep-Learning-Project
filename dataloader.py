@@ -52,8 +52,13 @@ class MURA_dataset(Dataset):
         count = self.df.iloc[image_idx, 1]
         images = []
         for i in range(count):
-            image = pil_loader(study_path + 'image%s.png' % (i + 1))
-            images.append(self.transform(image))
+            # WE ADDED THE IF OS EXISTS BECAUSE OF THE CORRUPTED MURA DATASET THAT HAS
+            #  CORRUPTED IMAGES STARTING WITH ._
+            if os.path.exists(study_path + 'image%s.png' % (i + 1)):
+                image = pil_loader(study_path + 'image%s.png' % (i + 1))
+                images.append(self.transform(image))
+            else:
+                break
         images = torch.stack(images)
         label = self.df.iloc[image_idx, 2]
         sample = {'images': images, 'labels': label}
@@ -64,8 +69,9 @@ def get_dataloaders(data, batch_size=8, study_level=False):
 
     # IN THE PAPER THEY RESCALE THE IMAGES TO 320 x 320
     # THEY AUGMENT THE DATA WITH INVERSIONS AND ROTATIONS.
-    # image_shape = (224, 224)
-    image_shape = (100, 100)
+    image_shape = (224, 224)
+    # image_shape = (100, 100)
+
     data_transforms = {
         'train': transforms.Compose([
                 transforms.Resize((image_shape[0], image_shape[1])),
