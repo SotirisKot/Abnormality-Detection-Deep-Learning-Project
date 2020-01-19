@@ -63,10 +63,9 @@ class MURA_dataset(Dataset):
 def get_dataloaders(data, batch_size=8, study_level=False):
 
     # IN THE PAPER THEY RESCALE THE IMAGES TO 320 x 320
-    # DENSENET HOWEVER IS TRAINED ON 224 x 224 IMAGES
     # THEY AUGMENT THE DATA WITH INVERSIONS AND ROTATIONS.
-    image_shape = (224, 224)
-
+    # image_shape = (224, 224)
+    image_shape = (100, 100)
     data_transforms = {
         'train': transforms.Compose([
                 transforms.Resize((image_shape[0], image_shape[1])),

@@ -67,6 +67,7 @@ class MLP_With_Average_Pooling(Module):
     def init_weights(self):
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
+        torch.nn.init.xavier_uniform_(self.layer_3.weight)
         torch.nn.init.xavier_uniform_(self.final_layer.weight)
 
     def forward(self, images):
@@ -95,6 +96,66 @@ class MLP_With_Average_Pooling(Module):
         output  = self.leaky_relu(output)
 
         output  = self.final_layer(output)
+        output  = torch.mean(output)
+
+        # do not add sigmoid...BCEWithLogitsLoss does this
+        return output.unsqueeze(-1)
+
+
+# =========================== CNNs MODELS =========================== #
+class CNN_With_Average_Pooling(Module):
+    def __init__(self, input_channels, n_classes, n_filters_1, n_filters_2, dropout=None):
+        super(CNN_With_Average_Pooling, self).__init__()
+
+        self.input_channels   = input_channels
+        self.n_classes        = n_classes
+        self.n_filters_1      = n_filters_1
+        self.n_filters_2      = n_filters_2
+
+        self.maxpool          = nn.MaxPool2d(kernel_size=3)
+        self.leaky_relu       = F.leaky_relu
+        self.dropout          = dropout
+
+        self.conv1            = nn.Conv2d(3, n_filters_1, kernel_size=5)
+        self.conv2            = nn.Conv2d(n_filters_1, n_filters_2, kernel_size=5)
+
+        self.final_layer      = nn.Linear(1620, self.n_classes, bias=True)
+
+    def init_weights(self, scale=1e-4):
+
+        for param in self.conv1.parameters():
+            nn.init.uniform_(param, a=-scale, b=scale)
+
+        for param in self.conv2.parameters():
+            nn.init.uniform_(param, a=-scale, b=scale)
+
+        torch.nn.init.xavier_uniform_(self.final_layer.weight)
+
+    def forward(self, images):
+
+        # flatten the images
+
+        # squeeze the first dim...it is the batch_size = 1
+        images  = images.squeeze(0)
+
+        # images  = images.view(images.shape[0], -1)
+
+        output  = self.leaky_relu(self.maxpool(self.conv1(images)))
+
+        # TODO add it later
+        # output  = F.dropout(output, self.dropout, self.training)
+
+        output = self.leaky_relu(self.maxpool(self.conv2(output)))
+
+        # flatten the output
+
+        # TODO add it later
+        # output = F.dropout(output, self.dropout, self.training)
+
+        output  = output.view(images.shape[0], -1)
+
+        output  = self.final_layer(output)
+
         output  = torch.mean(output)
 
         # do not add sigmoid...BCEWithLogitsLoss does this
@@ -146,6 +207,8 @@ class PretrainedDensenet(nn.Module):
 
         # we must squeeze the first dimension ---> it is the batch_size
         x        = x.squeeze(0)
+
+        # TODO for later...upsample the image to 224x224
 
         features = self.features(x)
         out      = self.leaky_relu(features)

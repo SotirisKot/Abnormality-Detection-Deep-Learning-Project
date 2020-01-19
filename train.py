@@ -23,17 +23,23 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import pickle
 from torch.utils.data import DataLoader
-from models import MLP_With_Average_Pooling, PretrainedDensenet
+from models import MLP_With_Average_Pooling, PretrainedDensenet, CNN_With_Average_Pooling
 from sklearn.metrics import roc_curve, auc, roc_auc_score, average_precision_score
 import re
 import argparse
+import logging
+
 
 from dataloader import get_study_level_data, get_dataloaders
 
-# odir_checkpoint = './checkpoints/'
-odir_checkpoint = 'drive/My Drive/DeepLearningProject/checkpoints/'
+odir_checkpoint = './checkpoints/'
+# odir_checkpoint = './logs/'
 
-best_chekpoint_name = 'pretrained_densenet169.pth.tar'
+
+hdlr  = None
+study = 'XR_FINGER'
+
+best_chekpoint_name = 'simple_cnn_no_dropout_{}.pth.tar'.format(study)
 
 if not os.path.exists(odir_checkpoint):
     os.makedirs(odir_checkpoint)
@@ -48,9 +54,9 @@ def print_params(model):
     print(40 * '=')
     print(model)
     print(40 * '=')
-    # logger.info(40 * '=')
-    # logger.info(model)
-    # logger.info(40 * '=')
+    logger.info(40 * '=')
+    logger.info(model)
+    logger.info(40 * '=')
     trainable = 0
     untrainable = 0
     for parameter in model.parameters():
@@ -66,13 +72,33 @@ def print_params(model):
     print(40 * '=')
     print('trainable:{} untrainable:{} total:{}'.format(trainable, untrainable, total_params))
     print(40 * '=')
-    # logger.info(40 * '=')
-    # logger.info('trainable:{} untrainable:{} total:{}'.format(trainable, untrainable, total_params))
-    # logger.info(40 * '=')
+    logger.info(40 * '=')
+    logger.info('trainable:{} untrainable:{} total:{}'.format(trainable, untrainable, total_params))
+    logger.info(40 * '=')
 
 
 def save_checkpoint(state, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
+
+
+def init_the_logger(hdlr):
+    if not os.path.exists(odir_checkpoint):
+        os.makedirs(odir_checkpoint)
+    od = odir_checkpoint.split('/')[-1]  # 'gcn_lr_skip_connections'
+    logger = logging.getLogger(od)
+
+    if (hdlr is not None):
+        logger.removeHandler(hdlr)
+
+    hdlr = logging.FileHandler(os.path.join(odir_checkpoint, 'simple_cnn_dropout_{}.log'.format(study)))
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+    hdlr.setFormatter(formatter)
+    logger.addHandler(hdlr)
+    logger.setLevel(logging.INFO)
+    return logger, hdlr
+
+
+logger, hdlr = init_the_logger(hdlr)
 
 
 def back_prop(batch_costs):
@@ -96,7 +122,7 @@ def weighted_binary_cross_entropy(output, target, weights=None):
 
 
 # load data for one study
-study_data = get_study_level_data(study_type='XR_ELBOW')
+study_data = get_study_level_data(study_type=study)
 
 # dataloaders for a study
 data_cat = ['train', 'valid']
@@ -124,7 +150,7 @@ epochs              = 10
 
 
 # some pretrained models that we can use
-pretrained          = True
+pretrained          = False
 pretrained_model    = 'densenet169'
 
 # pretrained_model    = 'densenet121'
@@ -138,12 +164,18 @@ if pretrained:
     model               = PretrainedDensenet(pretrained_model, num_class=1)
 else:
 
-    model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
-                                                   n_classes=1,
-                                                   hidden_1=5000,
-                                                   hidden_2=1000,
-                                                   hidden_3=100,
-                                                   dropout=0.3)
+    # model               = MLP_With_Average_Pooling(input_dim=3*image_shape,
+    #                                                n_classes=1,
+    #                                                hidden_1=5000,
+    #                                                hidden_2=1000,
+    #                                                hidden_3=100,
+    #                                                dropout=0.3)
+
+    model = CNN_With_Average_Pooling(input_channels=3,
+                                     n_classes=1,
+                                     n_filters_1=10,
+                                     n_filters_2=20,
+                                     dropout=0.3)
 
 
 # ==================================              ================================== #
@@ -253,10 +285,14 @@ for epoch in range(epochs):
     print('Epoch Average Loss: {}, Epoch Average AUC: {}, Epoch: {} '.format(
         sum(epoch_costs) / float(len(epoch_costs)), np.mean(train_aucs), epoch))
 
+    logger.info('Epoch Average Loss: {}, Epoch Average AUC: {}, Epoch: {} '.format(
+        sum(epoch_costs) / float(len(epoch_costs)), np.mean(train_aucs), epoch))
+
     print()
     print('Evaluating on the dev set...')
     print()
 
+    logger.info('Evaluating on the dev set...')
     # evaluate on the dev set
     dev_auc, dev_aucs, dev_aps = evaluate(dev_iterator, model)
 
@@ -264,6 +300,11 @@ for epoch in range(epochs):
     print('AUC on Dev Set: {}, Epoch: {}'.format(np.mean(dev_aucs), epoch))
     print('Average Precision on dev set: {}, Epoch: {}'.format(np.mean(dev_aps), epoch))
     print(40 * '*')
+
+    logger.info(40 * '*')
+    logger.info('AUC on Dev Set: {}, Epoch: {}'.format(np.mean(dev_aucs), epoch))
+    logger.info('Average Precision on dev set: {}, Epoch: {}'.format(np.mean(dev_aps), epoch))
+    logger.info(40 * '*')
 
     if np.mean(dev_aucs) > best_auc:
         best_auc = np.mean(dev_aucs)
@@ -284,3 +325,9 @@ print(40*'-')
 
 print('=' * 90)
 print()
+
+logger.info(40*'-')
+logger.info("Best AUC {} at epoch: {}".format(best_auc, best_epoch))
+logger.info(40*'-')
+
+logger.info('=' * 90)
